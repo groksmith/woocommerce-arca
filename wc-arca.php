@@ -8,9 +8,6 @@ Author: HexDivision
 Author URI: http://www.hexdivision.com/
 */
 
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
-
 // Include our Gateway Class and Register Payment Gateway with WooCommerce
 add_action( 'plugins_loaded', 'woocommerce_arca_init', 0 );
 function woocommerce_arca_init() {
