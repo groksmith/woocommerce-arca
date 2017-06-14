@@ -122,29 +122,30 @@ class WC_ArCa extends WC_Payment_Gateway
 
         // Are we testing right now or is it a real transaction
         $environment = ($this->environment == "yes") ? 'TRUE' : 'FALSE';
-
         // Decide which URL to post to
         $environment_url = ("FALSE" == $environment)
             ? 'https://ipay.arca.am/payment/rest/'
-            : 'https://91.199.226.7:8445/payment/rest/';
+            : 'https://ipaytest.arca.am:8445/payment/rest/';
 
+        $cur = $customer_order->get_currency();
+        $cur = $this->codeCurrency($cur);
         // This is where the fun stuff begins
         $payload = array(
             "userName" => $this->username,
             "password" => $this->password,
-            "amount" => intval($customer_order->order_total) * 100,
+            "amount" => floatval($customer_order->order_total) * 100,
             "returnUrl" => $this->get_return_url($customer_order),
             "orderNumber" => intval($customer_order->get_order_number()) + 119332,
+            "currency" => $cur
         );
 
         // Send this payload to Authorize.net for processing
-        $response = wp_remote_post($environment_url . "registerPreAuth.do", array(
+        $response = wp_remote_post($environment_url . "register.do", array(
             'method' => 'POST',
             'body' => http_build_query($payload),
             'timeout' => 90,
             'sslverify' => false,
         ));
-
 
         if (is_wp_error($response)) {
             throw new Exception(__('We are currently experiencing problems trying to connect to this payment gateway. Sorry for the inconvenience.', 'arca'));
@@ -169,6 +170,36 @@ class WC_ArCa extends WC_Payment_Gateway
             }
         }
 
-        throw new Exception(__("Error processing checkout, please try again.", 'arca'));
     }
+
+    /**
+     * Excange amount with currency
+     * @param $currency string
+     *
+     * @return int|float
+     */
+    public function codeCurrency($currency)
+    {
+        if ($currency == 'AMD') {
+            return 051;
+        }
+
+        if ($currency == 'USD') {
+            return 840;
+        }
+
+        if ($currency == 'RUB') {
+            return 643;
+        }
+
+        if ($currency == 'GBP') {
+            return 840;
+        }
+
+        if ($currency == 'EUR') {
+            return 978;
+        }
+
+    }
+
 }
