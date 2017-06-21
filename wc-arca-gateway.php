@@ -19,7 +19,7 @@ class WC_ArCa extends WC_Payment_Gateway
         $this->method_title = __("ArCa", 'ArCa');
 
         // The description for this Payment Gateway, shown on the actual Payment options page on the backend
-        $this->method_description = __("Description", 'ArCa payment gateway');
+        $this->method_description = __("ArCa payment gateway", 'Description');
 
         // The title to be used for the vertical tabs that can be ordered top to bottom
         $this->title = __("Title", 'ArCa');
@@ -142,7 +142,8 @@ class WC_ArCa extends WC_Payment_Gateway
             "userName" => $this->username,
             "password" => $this->password,
             "amount" => floatval($customer_order->order_total) * 100,
-            "returnUrl" => $this->notify_url  ,
+            "returnUrl" => $this->notify_url,
+            "description" => $this->method_description,
             "orderNumber" => intval($customer_order->get_order_number()) + 119332,
             "currency" => $cur
         );
