@@ -47,9 +47,18 @@ class WC_ArCa extends WC_Payment_Gateway
         // ArCa password
         $this->password = $this->settings['password'];
 
-        // Lets check for SSL
-        add_action('admin_notices', array($this, 'do_ssl_check'));
+        $this->notify_url = str_replace( 'https:', 'http:', add_query_arg( 'wc-api', 'WC_ArCa', home_url( '/' ) ) );
 
+        // Lets check for SSL
+        if(is_ssl()){
+            add_action('admin_notices', array($this, 'do_ssl_check'));
+        }
+
+
+        add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
+
+        // Payment listener/API hook
+        add_action('woocommerce_api_wc_arca', array($this, 'check_ipn_response'));
         // Save settings
         if (is_admin()) {
             // Versions over 2.0
@@ -119,32 +128,37 @@ class WC_ArCa extends WC_Payment_Gateway
         // Get this Order's information so that we know
         // who to charge and how much
         $customer_order = new WC_Order($order_id);
-
-        // Are we testing right now or is it a real transaction
+        $customer_order->update_status( 'on-hold', __( 'Awaiting BACS payment', 'woocommerce' ) );
+        wc_reduce_stock_levels( $order_id );
         $environment = ($this->environment == "yes") ? 'TRUE' : 'FALSE';
-
-        // Decide which URL to post to
         $environment_url = ("FALSE" == $environment)
             ? 'https://ipay.arca.am/payment/rest/'
-            : 'https://91.199.226.7:8445/payment/rest/';
+            : 'https://ipaytest.arca.am:8445/payment/rest/';
 
-        // This is where the fun stuff begins
+        $cur = $customer_order->get_currency();
+        $cur = $this->codeCurrency($cur);
+
         $payload = array(
             "userName" => $this->username,
             "password" => $this->password,
-            "amount" => intval($customer_order->order_total) * 100,
-            "returnUrl" => $this->get_return_url($customer_order),
+            "amount" => floatval($customer_order->order_total) * 100,
+            "returnUrl" => $this->notify_url  ,
             "orderNumber" => intval($customer_order->get_order_number()) + 119332,
+            "currency" => $cur
         );
 
-        // Send this payload to Authorize.net for processing
-        $response = wp_remote_post($environment_url . "registerPreAuth.do", array(
+        $ssl = false;
+
+        if(is_ssl()){
+            $ssl = true;
+        }
+
+        $response = wp_remote_post($environment_url . "register.do", array(
             'method' => 'POST',
             'body' => http_build_query($payload),
             'timeout' => 90,
-            'sslverify' => false,
+            'sslverify' => $ssl,
         ));
-
 
         if (is_wp_error($response)) {
             throw new Exception(__('We are currently experiencing problems trying to connect to this payment gateway. Sorry for the inconvenience.', 'arca'));
@@ -154,7 +168,6 @@ class WC_ArCa extends WC_Payment_Gateway
             throw new Exception(__('ArCa\'s Response was empty.', 'arca'));
         }
 
-        // Retrieve the body's response if no errors found
         $response_body = wp_remote_retrieve_body($response);
         $response_data = json_decode($response_body, true);
 
@@ -168,7 +181,112 @@ class WC_ArCa extends WC_Payment_Gateway
                 throw new Exception(__($response_data["errorMessage"], 'arca'));
             }
         }
+        throw new Exception(__('We are currently experiencing problems trying to connect to this payment gateway. Sorry for the inconvenience.', 'arca'));
+    }
 
-        throw new Exception(__("Error processing checkout, please try again.", 'arca'));
+    /**
+     * Excange amount with currency
+     * @param $currency string
+     *
+     * @return int|float
+     */
+    public function codeCurrency($currency)
+    {
+        if ($currency == 'AMD') {
+            return '051';
+        }
+
+        if ($currency == 'USD') {
+            return '840';
+        }
+
+        if ($currency == 'RUB') {
+            return '643';
+        }
+
+        if ($currency == 'GBP') {
+            return '840';
+        }
+
+        if ($currency == 'EUR') {
+            return '978';
+        }
+
+        return '051';
+    }
+
+    /**
+     * Check ARCA Payment network response and then redirect to error or thank you page
+     * return mixed
+     */
+    function check_ipn_response()
+    {
+        try {
+            global $woocommerce;
+            @ob_clean();
+            $orderId = $_GET['orderId'];
+
+            $username = $this->username;
+            $password = $this->password;
+            $environment = $this->environment;
+
+            $environment_url = ("FALSE" == $environment)
+                ? 'https://ipay.arca.am/payment/rest/'
+                : 'https://ipaytest.arca.am:8445/payment/rest/';
+
+            $url = $environment_url . "getOrderStatus.do?" . 'orderId=' . $orderId . '&userName=' . $username . '&password=' . $password;
+            $response = wp_remote_get($url, array(
+                'method' => 'GET',
+                'timeout' => 90,
+                'sslverify' => false,
+            ));
+
+            if (is_wp_error($response)) {
+                throw new Exception(__('We are currently experiencing problems trying to connect to this payment gateway. Sorry for the inconvenience.', 'arca'));
+            }
+
+            if (empty($response['body'])) {
+                throw new Exception(__('ArCa\'s Response was empty.', 'arca'));
+            }
+
+            // Retrieve the body's response if no errors found
+            $response_body = wp_remote_retrieve_body($response);
+            $response_data = json_decode($response_body, true);
+
+
+            if (isset($response_data["ErrorCode"])) {
+                if ($response_data["ErrorCode"] == 0) {
+
+                    $orderId = (int)$response_data["OrderNumber"] - 119332;
+                    $order = new WC_Order($orderId);
+
+                    $order->payment_complete();
+                    $woocommerce->cart->empty_cart();
+                    $order->add_order_note(__('IPN payment completed', 'woothemes'));
+
+                    wp_redirect( $this->get_return_url( $order ) );
+                    exit;
+
+                } else {
+                    throw new Exception($response_data['ErrorMessage']);
+                }
+            } else {
+                throw new Exception($response_data['ErrorMessage']);
+            }
+        } catch (Exception $e) {
+            $error = $e->getMessage();
+            wc_add_notice($error,  $notice_type = 'error' );
+        }
+    }
+
+    /**
+     * Output for the order received page.
+     *
+     * @access public
+     * @return void
+     */
+    function receipt_page(  $order ) {
+        echo '<p>'.__( 'Thank you for your order, please click the button below to pay with PayPal.', 'woocommerce' ).'</p>';
+        echo $this->generate_checkbox_html( $_GET['key'], $order );
     }
 }
