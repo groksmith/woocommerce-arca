@@ -13,6 +13,9 @@ class WC_ArCa extends WC_Payment_Gateway
      */
     function __construct()
     {
+
+        $plugin_dir = plugin_dir_url(__FILE__);
+
         $this->id = "arca";
 
         // The Title shown on the top of the Payment Gateways Page next to all the other Payment Gateways
@@ -25,16 +28,14 @@ class WC_ArCa extends WC_Payment_Gateway
         $this->title = __("Title", 'ArCa');
 
         // If you want to show an image next to the gateway's name on the frontend, enter a URL to an image.
-        $this->icon = null;
+        $this->icon = apply_filters('woocommerce_arca_icon', ''.$plugin_dir.'icons/arca.gif');
 
         // Bool. Can be set to true if you want payment fields to show on the checkout
-        // if doing a direct integration, which we are doing in this case
         $this->has_fields = true;
 
         // This basically defines your settings which are then loaded with init_settings()
         $this->init_form_fields();
 
-        // After init_settings() is called, you can get the settings and load them into variables, e.g:
         // $this->title = $this->get_option( 'title' );
         $this->init_settings();
 
@@ -47,24 +48,19 @@ class WC_ArCa extends WC_Payment_Gateway
         // ArCa password
         $this->password = $this->settings['password'];
 
-        $this->notify_url = str_replace( 'https:', 'http:', add_query_arg( 'wc-api', 'WC_ArCa', home_url( '/' ) ) );
+        $this->notify_url = str_replace('https:', 'http:', add_query_arg('wc-api', 'WC_ArCa', home_url('/')));
 
         // Lets check for SSL
-        if(is_ssl()){
+        if (is_ssl()) {
             add_action('admin_notices', array($this, 'do_ssl_check'));
         }
 
-
-        add_action('woocommerce_receipt_' . $this->id, array($this, 'receipt_page'));
-
         // Payment listener/API hook
         add_action('woocommerce_api_wc_arca', array($this, 'check_ipn_response'));
-        // Save settings
+
+        add_filter ('woocommerce_gateway_icon', [$this, 'card_icons']);
+
         if (is_admin()) {
-            // Versions over 2.0
-            // Save our administration options. Since we are not going to be doing anything special
-            // we have not defined 'process_admin_options' in this class so the method in the parent
-            // class will be used instead
             add_action('woocommerce_update_options_payment_gateways_' . $this->id, array(
                 $this,
                 'process_admin_options'
@@ -126,10 +122,9 @@ class WC_ArCa extends WC_Payment_Gateway
     public function process_payment($order_id)
     {
         // Get this Order's information so that we know
-        // who to charge and how much
         $customer_order = new WC_Order($order_id);
-        $customer_order->update_status( 'on-hold', __( 'Awaiting BACS payment', 'woocommerce' ) );
-        wc_reduce_stock_levels( $order_id );
+        $customer_order->update_status('on-hold', __('Awaiting BACS payment', 'woocommerce'));
+        wc_reduce_stock_levels($order_id);
         $environment = ($this->environment == "yes") ? 'TRUE' : 'FALSE';
         $environment_url = ("FALSE" == $environment)
             ? 'https://ipay.arca.am/payment/rest/'
@@ -147,10 +142,9 @@ class WC_ArCa extends WC_Payment_Gateway
             "orderNumber" => intval($customer_order->get_order_number()) + 119332,
             "currency" => $cur
         );
-
         $ssl = false;
 
-        if(is_ssl()){
+        if (is_ssl()) {
             $ssl = true;
         }
 
@@ -254,7 +248,6 @@ class WC_ArCa extends WC_Payment_Gateway
             $response_body = wp_remote_retrieve_body($response);
             $response_data = json_decode($response_body, true);
 
-
             if (isset($response_data["ErrorCode"])) {
                 if ($response_data["ErrorCode"] == 0) {
 
@@ -265,7 +258,7 @@ class WC_ArCa extends WC_Payment_Gateway
                     $woocommerce->cart->empty_cart();
                     $order->add_order_note(__('IPN payment completed', 'woothemes'));
 
-                    wp_redirect( $this->get_return_url( $order ) );
+                    wp_redirect($this->get_return_url($order));
                     exit;
 
                 } else {
@@ -276,18 +269,14 @@ class WC_ArCa extends WC_Payment_Gateway
             }
         } catch (Exception $e) {
             $error = $e->getMessage();
-            wc_add_notice($error,  $notice_type = 'error' );
+            wc_add_notice($error, $notice_type = 'error');
         }
     }
 
-    /**
-     * Output for the order received page.
-     *
-     * @access public
-     * @return void
-     */
-    function receipt_page(  $order ) {
-        echo '<p>'.__( 'Thank you for your order, please click the button below to pay with PayPal.', 'woocommerce' ).'</p>';
-        echo $this->generate_checkbox_html( $_GET['key'], $order );
+    function card_icons() {
+        $icon  = '<img src="'.plugin_dir_url(__FILE__).'/icons/visa.png" alt="Visa" />';
+        $icon  .= '<img src="'.plugin_dir_url(__FILE__).'/icons/mastercard.png" alt="MasterCard" />';
+        $icon  .= '<img src="'.plugin_dir_url(__FILE__).'/icons/arca.png" alt="Arca" />';
+        return $icon;
     }
 }
