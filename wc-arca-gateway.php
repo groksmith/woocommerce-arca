@@ -272,9 +272,9 @@ class WC_ArCa extends WC_Payment_Gateway
     }
 
     function get_icon() {
-        $icon  = '<img src="'.plugin_dir_url(__FILE__).'/icons/visa.png" alt="Visa" />';
-        $icon  .= '<img src="'.plugin_dir_url(__FILE__).'/icons/mastercard.png" alt="MasterCard" />';
-        $icon  .= '<img src="'.plugin_dir_url(__FILE__).'/icons/arca.png" alt="Arca" />';
+        $icon  = '<img style="width:50px" src="'.plugin_dir_url(__FILE__).'/icons/visa.png" alt="Visa" />';
+        $icon  .= '<img style="width:50px" src="'.plugin_dir_url(__FILE__).'/icons/mastercard.png" alt="MasterCard" />';
+        $icon  .= '<img style="width:50px"  src="'.plugin_dir_url(__FILE__).'/icons/arca.png" alt="Arca" />';
 
         return apply_filters( 'woocommerce_arca_icon', $icon, $this->id );
     }
