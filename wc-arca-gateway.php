@@ -28,7 +28,7 @@ class WC_ArCa extends WC_Payment_Gateway
         $this->title = __("Title", 'ArCa');
 
         // If you want to show an image next to the gateway's name on the frontend, enter a URL to an image.
-        $this->icon = apply_filters('woocommerce_arca_icon', ''.$plugin_dir.'icons/arca.gif');
+        //$this->icon = apply_filters('woocommerce_arca_icon', [$this, 'card_icons']);
 
         // Bool. Can be set to true if you want payment fields to show on the checkout
         $this->has_fields = true;
@@ -57,8 +57,6 @@ class WC_ArCa extends WC_Payment_Gateway
 
         // Payment listener/API hook
         add_action('woocommerce_api_wc_arca', array($this, 'check_ipn_response'));
-
-        add_filter ('woocommerce_gateway_icon', [$this, 'card_icons']);
 
         if (is_admin()) {
             add_action('woocommerce_update_options_payment_gateways_' . $this->id, array(
@@ -273,10 +271,11 @@ class WC_ArCa extends WC_Payment_Gateway
         }
     }
 
-    function card_icons() {
+    function get_icon() {
         $icon  = '<img src="'.plugin_dir_url(__FILE__).'/icons/visa.png" alt="Visa" />';
         $icon  .= '<img src="'.plugin_dir_url(__FILE__).'/icons/mastercard.png" alt="MasterCard" />';
         $icon  .= '<img src="'.plugin_dir_url(__FILE__).'/icons/arca.png" alt="Arca" />';
-        return $icon;
+
+        return apply_filters( 'woocommerce_arca_icon', $icon, $this->id );
     }
 }
