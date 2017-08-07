@@ -8,13 +8,15 @@ class WC_ArCa extends WC_Payment_Gateway
 
     private $password;
 
+    public static $log = false;
+
     /**
      * WC_ArCa constructor.
      */
     function __construct()
     {
 
-        $plugin_dir = plugin_dir_url(__FILE__);
+         plugin_dir_url(__FILE__);
 
         $this->id = "arca";
 
@@ -50,10 +52,12 @@ class WC_ArCa extends WC_Payment_Gateway
 
         $this->notify_url = str_replace('https:', 'http:', add_query_arg('wc-api', 'WC_ArCa', home_url('/')));
 
+        $this->debug = true;
+
         // Lets check for SSL
-        if (is_ssl()) {
-            add_action('admin_notices', array($this, 'do_ssl_check'));
-        }
+
+        add_action('admin_notices', array($this, 'do_ssl_check'));
+
 
         // Payment listener/API hook
         add_action('woocommerce_api_wc_arca', array($this, 'check_ipn_response'));
@@ -119,9 +123,10 @@ class WC_ArCa extends WC_Payment_Gateway
      */
     public function process_payment($order_id)
     {
+        global $woocommerce;
         // Get this Order's information so that we know
         $customer_order = new WC_Order($order_id);
-        $customer_order->update_status('on-hold', __('Awaiting BACS payment', 'woocommerce'));
+
         wc_reduce_stock_levels($order_id);
         $environment = ($this->environment == "yes") ? 'TRUE' : 'FALSE';
         $environment_url = ("FALSE" == $environment)
