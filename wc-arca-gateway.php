@@ -226,7 +226,7 @@ class WC_ArCa extends WC_Payment_Gateway
 
             $username = $this->username;
             $password = $this->password;
-            $environment = $this->environment;
+            $environment = ($this->environment == "yes") ? 'TRUE' : 'FALSE';
 
             $environment_url = ("FALSE" == $environment)
                 ? 'https://ipay.arca.am/payment/rest/'
