@@ -16,7 +16,7 @@ class WC_ArCa extends WC_Payment_Gateway
     function __construct()
     {
 
-         plugin_dir_url(__FILE__);
+        plugin_dir_url(__FILE__);
 
         $this->id = "arca";
 
@@ -61,13 +61,14 @@ class WC_ArCa extends WC_Payment_Gateway
 
         // Payment listener/API hook
         add_action('woocommerce_api_wc_arca', array($this, 'check_ipn_response'));
-
+        do_action( 'woocommerce_set_cart_cookies',  true );
         if (is_admin()) {
             add_action('woocommerce_update_options_payment_gateways_' . $this->id, array(
                 $this,
                 'process_admin_options'
             ));
         }
+
     }
 
     // Build the administration fields for this specific Gateway
@@ -219,6 +220,7 @@ class WC_ArCa extends WC_Payment_Gateway
      */
     function check_ipn_response()
     {
+
         try {
             global $woocommerce;
             @ob_clean();
@@ -226,9 +228,8 @@ class WC_ArCa extends WC_Payment_Gateway
 
             $username = $this->username;
             $password = $this->password;
-            $environment = ($this->environment == "yes") ? 'TRUE' : 'FALSE';
-
-            $environment_url = ("FALSE" == $environment)
+            $environment = $this->environment;
+            $environment_url = ("no" == $environment)
                 ? 'https://ipay.arca.am/payment/rest/'
                 : 'https://ipaytest.arca.am:8445/payment/rest/';
 
@@ -247,7 +248,7 @@ class WC_ArCa extends WC_Payment_Gateway
                 throw new Exception(__('ArCa\'s Response was empty.', 'arca'));
             }
 
-            // Retrieve the body's response if no errors found
+// Retrieve the body's response if no errors found
             $response_body = wp_remote_retrieve_body($response);
             $response_data = json_decode($response_body, true);
 
@@ -260,26 +261,31 @@ class WC_ArCa extends WC_Payment_Gateway
                     $order->payment_complete();
                     $woocommerce->cart->empty_cart();
                     $order->add_order_note(__('IPN payment completed', 'woothemes'));
+                    wc_add_notice('IPN payment completed', $notice_type = 'error');
 
                     wp_redirect($this->get_return_url($order));
                     exit;
-
-                } else {
-                    throw new Exception($response_data['ErrorMessage']);
+                }else{
+                    $orderId = (int)$response_data["OrderNumber"] - 119332;
+                    $order = new WC_Order($orderId);
+                    $order->update_status( 'Failed' );
+                    $order->add_order_note(__(''.$response_data['ErrorMessage'].'', 'woothemes'));
+                    wc_add_notice($response_data['ErrorMessage'], $notice_type = 'error');
+                    wp_redirect($this->get_return_url($order));
+                    exit;
                 }
-            } else {
-                throw new Exception($response_data['ErrorMessage']);
             }
         } catch (Exception $e) {
             $error = $e->getMessage();
-            wc_add_notice($error, $notice_type = 'error');
+            return wc_add_notice($error, $notice_type = 'error');
         }
     }
 
     function get_icon() {
-        $icon  = '<img style="width:50px" src="'.plugin_dir_url(__FILE__).'/icons/visa.png" alt="Visa" />';
-        $icon  .= '<img style="width:50px" src="'.plugin_dir_url(__FILE__).'/icons/mastercard.png" alt="MasterCard" />';
-        $icon  .= '<img style="width:50px"  src="'.plugin_dir_url(__FILE__).'/icons/arca.png" alt="Arca" />';
+        $icon  = '<img style="width: 250px;" src="'.plugin_dir_url(__FILE__).'/icons/cards.png" alt="Cards" />';
+        // $icon  = '<img style="width:50px" src="'.plugin_dir_url(__FILE__).'/icons/visa.png" alt="Visa" />';
+        // $icon  .= '<img style="width:50px" src="'.plugin_dir_url(__FILE__).'/icons/mastercard.png" alt="MasterCard" />';
+        // $icon  .= '<img style="width:50px"  src="'.plugin_dir_url(__FILE__).'/icons/arca.png" alt="Arca" />';
 
         return apply_filters( 'woocommerce_arca_icon', $icon, $this->id );
     }
